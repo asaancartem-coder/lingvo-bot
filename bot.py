@@ -3,24 +3,20 @@ from telebot import types
 from openai import OpenAI
 import csv
 from datetime import datetime
-import os                           # <-- НОВОЕ: Для работы с системой
+import os                           
 from dotenv import load_dotenv
-from keep_alive import keep_alive  # <-- НОВОЕ: Для загрузки .env файла
+from keep_alive import keep_alive  
 
-# Загружаем секретные ключи из файла .env
 load_dotenv()
 
-# Достаем ключи в переменные
 TG_TOKEN = os.getenv('TG_TOKEN')
 AI_API_KEY = os.getenv('AI_API_KEY')
 ADMIN_ID = os.getenv('ADMIN_ID')
 
-# Проверка, что ключи точно загрузились (полезно при переносе на сервер)
 if not TG_TOKEN or not AI_API_KEY:
     print("ВНИМАНИЕ: Ключи не найдены! Проверьте файл .env")
     exit()
 
-# Инициализация бота
 bot = telebot.TeleBot(TG_TOKEN)
 
 # Инициализация нейросети
@@ -29,12 +25,9 @@ client = OpenAI(
     base_url="https://api.proxyapi.ru/openai/v1"
 )
 
-# ... дальше идет весь твой остальной код ...
 
-# Словарь для хранения прогресса пользователей
 user_data = {}
 
-# 2. ПОЛНЫЙ СПИСОК ВОПРОСОВ (из PDF)
 questions = [
     # --- I. ОБЩАЯ ИНФОРМАЦИЯ ---
     {"text": "Раздел I. ОБЩАЯ ИНФОРМАЦИЯ\n\n1. Курс обучения:", "options": ["1", "2", "3", "4", "Магистратура"], "desc": "Курс"},
@@ -83,7 +76,6 @@ questions = [
     {"text": "10. Соблюдать этику межкультурной цифровой коммуникации", "options": ["1", "2", "3", "4", "5"], "desc": "Самооценка: Этика коммуникации"}
 ]
 
-# Функция создания клавиатуры
 def make_keyboard(options):
     if not options:
         return types.ReplyKeyboardRemove()
@@ -92,7 +84,6 @@ def make_keyboard(options):
         markup.add(types.KeyboardButton(opt))
     return markup
 
-# --- ОБРАБОТЧИКИ ---
 
 @bot.message_handler(commands=['start'])
 def start_test(message):
@@ -108,7 +99,6 @@ def start_test(message):
     bot.send_message(chat_id, text, reply_markup=types.ReplyKeyboardRemove())
     send_question(chat_id)
 
-# --- СЕКРЕТНАЯ КОМАНДА ДЛЯ АДМИНА ---
 @bot.message_handler(commands=['get_table'])
 def get_table_command(message):
     # Проверяем, что команду написал именно ты (сравниваем ID)
@@ -147,10 +137,8 @@ def handle_answer(message):
         bot.send_message(chat_id, "Ты уже прошел тест. Нажми /start чтобы начать заново.")
         return
 
-    # Сохраняем ответ пользователя
     user_data[chat_id]['answers'].append(message.text)
 
-    # Переходим к следующему вопросу
     user_data[chat_id]['step'] += 1
     send_question(chat_id)
 
@@ -192,10 +180,8 @@ def analyze_answers_with_ai(chat_id):
 
         ai_reply = response.choices[0].message.content
 
-        # 1. Отправляем результат самому студенту
         bot.send_message(chat_id, f"🧠 **ФИНАЛЬНЫЙ АНАЛИЗ ИИ:**\n\n{ai_reply}", parse_mode="Markdown")
 
-        # --- НОВЫЙ БЛОК: СОХРАНЕНИЕ ДАННЫХ ---
 
         # Получаем данные студента (его никнейм и имя)
         user_info = bot.get_chat(chat_id)
@@ -215,14 +201,10 @@ def analyze_answers_with_ai(chat_id):
         except Exception as admin_err:
             print(f"Не удалось отправить сообщение админу (возможно неверный ID): {admin_err}")
 
-        # 3. Сохраняем в таблицу CSV (Excel)
-        # utf-8-sig нужен, чтобы Excel на Windows правильно читал русские буквы
-        # 3. Сохраняем в таблицу CSV (Excel) на компьютер
         with open('students_results.csv', mode='a', encoding='utf-8-sig', newline='') as file:
             writer = csv.writer(file, delimiter=';')
             writer.writerow([current_time, username, chat_id, answers_text, ai_reply])
 
-        # 4. ОТПРАВЛЯЕМ ЭТОТ ФАЙЛ ТЕБЕ (АДМИНУ) В ТЕЛЕГРАМ
         try:
             with open('students_results.csv', 'rb') as doc:
                 bot.send_document(ADMIN_ID, doc, caption="📂 Обновленная таблица с результатами студентов")
@@ -232,7 +214,6 @@ def analyze_answers_with_ai(chat_id):
     except Exception as e:
         bot.send_message(chat_id, f"Упс, ошибка при связи с нейросетью: {e}")
 
-# Запуск бота
 if __name__ == '__main__':
     keep_alive()
     print("Бот-тестировщик запущен. Все 32 вопроса загружены...")
